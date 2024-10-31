@@ -71,7 +71,11 @@ jobs:
             "defaultCommandTimeout": 10000,
             "supportFile": "cypress/support/index.js"
           }' > cypress.json
-
+        - uses: listendev/action@v0.11.0
+          with:
+            ci: 'only'
+            jwt: ${{ secrets.LSTN_API_KEY }}
+            lstn: 'v0.15.0'
       - name: Install dependencies
         working-directory: test-env
         run: |
@@ -158,6 +162,12 @@ jobs:
           mkdir -p test-env
           cp -r @lottiefiles_lottie-player_2.0.5/* test-env/
 
+      - uses: listendev/action@v0.11.0
+        with:
+          ci: 'only'
+          jwt: ${{ secrets.LSTN_API_KEY }}
+          lstn: 'v0.15.0'
+
       - name: Install dependencies
         working-directory: test-env
         run: |
@@ -202,6 +212,13 @@ jobs:
           npm init -y
           npm install @lottiefiles/lottie-player@2.0.8 --save-exact
           cp -r node_modules/@lottiefiles/lottie-player/* .
+
+
+      - uses: listendev/action@v0.11.0
+        with:
+          ci: 'only'
+          jwt: ${{ secrets.LSTN_API_KEY }}
+          lstn: 'v0.15.0'
 
       - name: Install dependencies
         working-directory: test-env
