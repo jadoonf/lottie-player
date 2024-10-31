@@ -1,0 +1,170 @@
+name: Coverage Tests
+
+on:
+  push:
+    branches: ['*']
+  workflow_dispatch:
+  pull_request:
+    branches: ['*']
+
+jobs:
+  setup-versions:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: ['2.0.4', '2.0.5', '2.0.8']
+        include:
+          - version: '2.0.4'
+            source: 'local'
+            path: '@lottiefiles_lottie-player_2.0.4'
+          - version: '2.0.5'
+            source: 'local'
+            path: '@lottiefiles_lottie-player_2.0.5'
+          - version: '2.0.8'
+            source: 'registry'
+            path: ''
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: 14.x
+
+      - name: Setup test environment for ${{ matrix.version }}
+        run: |
+          mkdir -p coverage-test/${{ matrix.version }}
+          if [ "${{ matrix.source }}" = "local" ]; then
+            cp -r ${{ matrix.path }}/* coverage-test/${{ matrix.version }}/
+          else
+            cd coverage-test/${{ matrix.version }}
+            npm init -y
+            npm install @lottiefiles/lottie-player@${{ matrix.version }} --save-exact
+            cp -r node_modules/@lottiefiles/lottie-player/* .
+          fi
+
+      - name: Setup test configuration
+        working-directory: coverage-test/${{ matrix.version }}
+        run: |
+          # Create package.json with test dependencies
+          echo '{
+            "name": "lottie-player-coverage-test",
+            "version": "${{ matrix.version }}",
+            "dependencies": {
+              "lit": "^2.1.2",
+              "lottie-web": "^5.12.2",
+              "pako": "^2.0.4",
+              "resize-observer-polyfill": "^1.5.1",
+              "fastify": "^3.25.3",
+              "fastify-static": "^4.5.0"
+            },
+            "devDependencies": {
+              "@cypress/code-coverage": "^3.9.12",
+              "cypress": "9.2.1",
+              "nyc": "^15.1.0",
+              "istanbul": "^0.4.5",
+              "istanbul-lib-coverage": "^3.0.0"
+            },
+            "scripts": {
+              "test": "cypress run",
+              "coverage": "nyc cypress run"
+            }
+          }' > package.json
+
+          # Create cypress.json
+          echo '{
+            "baseUrl": "http://localhost:8000",
+            "video": false,
+            "screenshotOnRunFailure": true,
+            "defaultCommandTimeout": 10000,
+            "supportFile": "cypress/support/index.js",
+            "integrationFolder": "cypress/integration",
+            "testFiles": "**/*.spec.js",
+            "env": {
+              "codeCoverage": {
+                "url": "/coverage"
+              }
+            }
+          }' > cypress.json
+
+      - name: Install dependencies
+        working-directory: coverage-test/${{ matrix.version }}
+        run: |
+          npm install --no-package-lock --legacy-peer-deps
+
+      - name: Setup test files
+        run: |
+          cp -r cypress coverage-test/${{ matrix.version }}/
+          mkdir -p coverage-test/${{ matrix.version }}/coverage
+
+      - name: Run coverage tests
+        working-directory: coverage-test/${{ matrix.version }}
+        run: |
+          # Start test server
+          node cypress/pages/server.js &
+          sleep 5
+
+          # Run all Cypress specs with coverage
+          npx nyc --reporter=lcov --reporter=text-summary cypress run \
+            --spec "cypress/integration/lottie-player/*.spec.js"
+
+      - name: Upload coverage results
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-${{ matrix.version }}
+          path: |
+            coverage-test/${{ matrix.version }}/coverage
+            coverage-test/${{ matrix.version }}/.nyc_output
+
+  generate-coverage-report:
+    needs: setup-versions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all coverage results
+        uses: actions/download-artifact@v3
+        with:
+          path: coverage-results
+
+      - name: Generate combined report
+        run: |
+          echo "# Lottie Player Coverage Report" > coverage-report.md
+          echo "Generated: $(date)" >> coverage-report.md
+          echo "" >> coverage-report.md
+
+          for version in "2.0.4" "2.0.5" "2.0.8"; do
+            echo "## Version $version Coverage" >> coverage-report.md
+            echo '```' >> coverage-report.md
+            if [ -f "coverage-results/coverage-$version/.nyc_output/coverage-summary.txt" ]; then
+              cat "coverage-results/coverage-$version/.nyc_output/coverage-summary.txt" >> coverage-report.md
+            else
+              echo "No coverage data available" >> coverage-report.md
+            fi
+            echo '```' >> coverage-report.md
+            echo "" >> coverage-report.md
+          done
+
+          # Add coverage comparison
+          echo "## Coverage Comparison" >> coverage-report.md
+          echo "| Version | Statements | Branches | Functions | Lines |" >> coverage-report.md
+          echo "|---------|------------|----------|-----------|-------|" >> coverage-report.md
+          
+          for version in "2.0.4" "2.0.5" "2.0.8"; do
+            coverage_file="coverage-results/coverage-$version/.nyc_output/coverage-summary.txt"
+            if [ -f "$coverage_file" ]; then
+              statements=$(grep "Statements" "$coverage_file" | awk '{print $3}')
+              branches=$(grep "Branches" "$coverage_file" | awk '{print $3}')
+              functions=$(grep "Functions" "$coverage_file" | awk '{print $3}')
+              lines=$(grep "Lines" "$coverage_file" | awk '{print $3}')
+              echo "| $version | $statements | $branches | $functions | $lines |" >> coverage-report.md
+            else
+              echo "| $version | N/A | N/A | N/A | N/A |" >> coverage-report.md
+            fi
+          done
+
+      - name: Upload combined report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-comparison-report
+          path: coverage-report.md 
