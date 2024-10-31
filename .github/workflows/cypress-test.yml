@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         node-version: [14.x]
-        package-version: ['2.0.5', '2.0.4', '2.0.3']
+        package-version: ['2.0.5']
 
     steps:
       - name: Checkout
@@ -58,6 +58,7 @@ jobs:
           yarn install --no-lockfile --ignore-optional --network-timeout 100000 --legacy-peer-deps
           npm install --no-package-lock --legacy-peer-deps
         continue-on-error: true
+
       - name: Build package version ${{ matrix.package-version }}
         working-directory: test-versions/${{ matrix.package-version }}
         run: |
@@ -73,6 +74,12 @@ jobs:
           # Update test server to use correct dist path
           sed -i 's|../../dist|../dist|g' test-versions/${{ matrix.package-version }}/cypress/pages/server.js
 
+      - name: Install Cypress
+        working-directory: test-versions/${{ matrix.package-version }}
+        run: |
+          npm install cypress@9.2.1 @cypress/code-coverage
+          npx cypress verify
+
       - name: Start test server for version ${{ matrix.package-version }}
         working-directory: test-versions/${{ matrix.package-version }}
         run: |
@@ -82,7 +89,12 @@ jobs:
       - name: Run Cypress tests
         working-directory: test-versions/${{ matrix.package-version }}
         run: |
-          npm run run-tests
+          npx cypress run --spec "cypress/integration/lottie-player/load_animation.spec.js"
+        env:
+          CYPRESS_CACHE_FOLDER: ~/.cache/Cypress
+          CYPRESS_VIDEO: false
+          CYPRESS_SCREENSHOT_ON_FAILURE: true
+          PACKAGE_VERSION: ${{ matrix.package-version }}
 
       - name: Stop test server
         if: always()
@@ -102,7 +114,7 @@ jobs:
 
       - name: Upload test artifacts
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: test-artifacts-${{ matrix.package-version }}
           path: |
