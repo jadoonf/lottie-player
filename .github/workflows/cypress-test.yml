@@ -48,7 +48,7 @@ jobs:
       - name: Install dependencies for version ${{ matrix.package-version }}
         working-directory: test-versions/${{ matrix.package-version }}
         run: |
-          npm install -g shx typescript
+          npm install -g shx typescript@4.5.5
           yarn install --no-lockfile --ignore-optional --network-timeout 100000 --legacy-peer-deps
           npm install --no-package-lock --legacy-peer-deps
 
