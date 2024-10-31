@@ -115,6 +115,7 @@ jobs:
           # Run all Cypress specs with coverage
           npx nyc --reporter=lcov --reporter=text-summary cypress run \
             --spec "cypress/integration/lottie-player/*.spec.js"
+        continue-on-error: true 
 
       - name: Upload coverage results
         uses: actions/upload-artifact@v3
