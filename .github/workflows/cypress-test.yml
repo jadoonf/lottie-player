@@ -1,0 +1,101 @@
+name: Cypress Tests
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+  pull_request:
+    branches: [master]
+
+jobs:
+  cypress-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: 14.x
+
+      - name: Clean npm config and update package.json
+        run: |
+          echo "registry=https://registry.npmjs.org/" > .npmrc
+          # Update package.json to fix dependency issues
+          jq '
+            del(.dependencies["@lottiefiles/eslint-plugin"]) |
+            .devDependencies["rollup"] = "^1.32.1" |
+            .devDependencies["@types/node"] = "^14.x" |
+            .devDependencies["webpack"] = "^5.x" |
+            .devDependencies["babel-loader"] = "^9.x" |
+            del(.devDependencies["rollup-plugin-terser"]) |
+            .devDependencies["@rollup/plugin-terser"] = "^0.4.0"
+          ' package.json > temp.json && mv temp.json package.json
+
+      - name: Install dependencies
+        run: |
+          npm install -g shx
+          npm install -g typescript
+          yarn install --no-lockfile --ignore-optional --network-timeout 100000 --legacy-peer-deps
+          npm install --no-package-lock --legacy-peer-deps
+
+      - name: Create dist directory and generate versions
+        run: |
+          mkdir -p dist
+          echo "export const LOTTIE_PLAYER_VERSION = '0.0.1';" > src/versions.ts
+          echo "export const LOTTIE_WEB_VERSION = '5.7.13';" >> src/versions.ts
+
+      - name: Build project
+        run: |
+          npm run build --legacy-peer-deps || true
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Start test server
+        run: |
+          node cypress/pages/server.js &
+          sleep 5 # Give the server time to start
+
+      - name: Run Cypress tests
+        uses: cypress-io/github-action@v4
+        with:
+          start: npm run serve
+          wait-on: 'http://localhost:8000'
+          browser: chrome
+          record: false
+          spec: cypress/integration/**/*
+        env:
+          CYPRESS_CACHE_FOLDER: ~/.cache/Cypress
+          CYPRESS_VIDEO: false
+          CYPRESS_SCREENSHOT_ON_FAILURE: true
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          name: cypress-artifacts
+          path: |
+            cypress/screenshots
+            cypress/videos
+            cypress/logs
+
+      - name: Generate test coverage report
+        if: always()
+        run: |
+          npx nyc report --reporter=text-summary
+          npx nyc report --reporter=html
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          name: coverage-report
+          path: coverage/
+
+      - name: Stop test server
+        if: always()
+        run: |
+          pkill -f "node cypress/pages/server.js" || true 
