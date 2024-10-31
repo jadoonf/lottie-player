@@ -93,7 +93,7 @@ jobs:
 
       - name: Upload test artifacts for version ${{ matrix.package-version }}
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: cypress-artifacts-${{ matrix.package-version }}
           path: |
@@ -109,7 +109,7 @@ jobs:
           npx nyc report --reporter=html
       - name: Upload coverage report for version ${{ matrix.package-version }}
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: coverage-report-${{ matrix.package-version }}
           path: 'test-versions/${{ matrix.package-version }}/coverage/'
