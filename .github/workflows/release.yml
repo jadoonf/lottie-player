@@ -32,8 +32,12 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
+      - name: Clean npm config
+        run: |
+          echo "registry=https://registry.npmjs.org/" > .npmrc
+          echo "@lottiefiles:registry=https://registry.npmjs.org/" >> .npmrc
       - name: Install dependencies
-        run: yarn install --no-lockfile
+        run: yarn install --no-lockfile --ignore-optional
       - name: Build project
         run: yarn build
       - name: Run tests
