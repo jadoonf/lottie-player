@@ -82,14 +82,8 @@ jobs:
           
       - name: Run Cypress tests for version ${{ matrix.package-version }}
         working-directory: test-versions/${{ matrix.package-version }}
-        uses: cypress-io/github-action@v4
-        with:
-          working-directory: test-versions/${{ matrix.package-version }}
-          start: npm run serve
-          wait-on: 'http://localhost:8000'
-          browser: chrome
-          record: false
-          spec: cypress/integration/lottie-player/load_animation.spec.js
+        run: |
+          cypress run --config-file cypress/support/index.js --spec cypress/integration/lottie-player/load_animation.spec.js
         env:
           CYPRESS_CACHE_FOLDER: ~/.cache/Cypress
           CYPRESS_VIDEO: false
