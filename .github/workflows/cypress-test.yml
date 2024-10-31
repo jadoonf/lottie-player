@@ -14,7 +14,14 @@ jobs:
     strategy:
       matrix:
         node-version: [14.x]
-        package-version: ['2.0.5']
+        package-version: ['2.0.4', '2.0.5', '2.0.8']
+        include:
+          - package-version: '2.0.4'
+            source: 'local'
+          - package-version: '2.0.5'
+            source: 'local'
+          - package-version: '2.0.8'
+            source: 'registry'
 
     steps:
       - name: Checkout
@@ -25,10 +32,18 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Extract package version ${{ matrix.package-version }}
+      - name: Setup test environment for ${{ matrix.package-version }}
         run: |
           mkdir -p test-versions/${{ matrix.package-version }}
-          cp -r @lottiefiles_lottie-player_${{ matrix.package-version }}/* test-versions/${{ matrix.package-version }}/
+          if [ "${{ matrix.source }}" = "local" ]; then
+            cp -r @lottiefiles_lottie-player_${{ matrix.package-version }}/* test-versions/${{ matrix.package-version }}/
+          else
+            cd test-versions/${{ matrix.package-version }}
+            npm init -y
+            npm install @lottiefiles/lottie-player@${{ matrix.package-version }} --save-exact
+            # Extract the installed package contents
+            cp -r node_modules/@lottiefiles/lottie-player/* .
+          fi
 
       - name: Clean npm config and setup test version
         run: |
@@ -52,12 +67,6 @@ jobs:
           ci: 'only'
           jwt: ${{ secrets.LSTN_API_KEY }}
           lstn: 'v0.15.0'
-
-      - name: Install global dependencies
-        run: |
-          npm install -g typescript@4.5.5
-          npm install -g rimraf@5.0.0
-          npm install -g glob@9.3.5
 
       - name: Install dependencies for version ${{ matrix.package-version }}
         working-directory: test-versions/${{ matrix.package-version }}
@@ -84,15 +93,17 @@ jobs:
         working-directory: test-versions/${{ matrix.package-version }}
         run: |
           mkdir -p dist
-          echo "export const LOTTIE_PLAYER_VERSION = '${{ matrix.package-version }}';" > src/versions.ts
-          echo "export const LOTTIE_WEB_VERSION = '5.7.13';" >> src/versions.ts
+          if [ ! -f "src/versions.ts" ]; then
+            mkdir -p src
+            echo "export const LOTTIE_PLAYER_VERSION = '${{ matrix.package-version }}';" > src/versions.ts
+            echo "export const LOTTIE_WEB_VERSION = '5.7.13';" >> src/versions.ts
+          fi
           npm run build --legacy-peer-deps || true
         continue-on-error: true
 
       - name: Copy test files
         run: |
           cp -r cypress test-versions/${{ matrix.package-version }}/
-          # Update test server to use correct dist path
           sed -i 's|../../dist|../dist|g' test-versions/${{ matrix.package-version }}/cypress/pages/server.js
 
       - name: Install Cypress
@@ -117,21 +128,14 @@ jobs:
           CYPRESS_SCREENSHOT_ON_FAILURE: true
           PACKAGE_VERSION: ${{ matrix.package-version }}
 
-      - name: Stop test server
-        if: always()
-        run: |
-          pkill -f "node cypress/pages/server.js" || true
-
       - name: Generate version comparison report
         if: always()
         run: |
-          echo "# Lottie Player Version Test Report" > version-report.md
-          echo "Version: ${{ matrix.package-version }}" >> version-report.md
-          echo "Test Date: $(date)" >> version-report.md
-          echo "## Test Results" >> version-report.md
-          echo "- Load Animation Tests: $([ $? -eq 0 ] && echo 'PASSED' || echo 'FAILED')" >> version-report.md
-          echo "## Listen.dev Analysis" >> version-report.md
-          echo "Security scan completed for version ${{ matrix.package-version }}" >> version-report.md
+          echo "# Lottie Player Version Test Report" > test-versions/${{ matrix.package-version }}/version-report.md
+          echo "Version: ${{ matrix.package-version }} (Source: ${{ matrix.source }})" >> test-versions/${{ matrix.package-version }}/version-report.md
+          echo "Test Date: $(date)" >> test-versions/${{ matrix.package-version }}/version-report.md
+          echo "## Test Results" >> test-versions/${{ matrix.package-version }}/version-report.md
+          echo "- Load Animation Tests: $([ $? -eq 0 ] && echo 'PASSED' || echo 'FAILED')" >> test-versions/${{ matrix.package-version }}/version-report.md
 
       - name: Upload test artifacts
         if: always()
@@ -139,7 +143,44 @@ jobs:
         with:
           name: test-artifacts-${{ matrix.package-version }}
           path: |
-            version-report.md
+            test-versions/${{ matrix.package-version }}/version-report.md
             test-versions/${{ matrix.package-version }}/cypress/screenshots
             test-versions/${{ matrix.package-version }}/cypress/videos
             test-versions/${{ matrix.package-version }}/coverage
+
+      - name: Stop test server
+        if: always()
+        run: |
+          pkill -f "node cypress/pages/server.js" || true
+
+  generate-comparison:
+    needs: cypress-version-tests
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      - name: Generate combined report
+        run: |
+          echo "# Lottie Player Version Comparison Report" > comparison-report.md
+          echo "Generated: $(date)" >> comparison-report.md
+          echo "" >> comparison-report.md
+          
+          for version in 2.0.4 2.0.5 2.0.8; do
+            echo "## Version $version Results" >> comparison-report.md
+            if [ -f "artifacts/test-artifacts-$version/version-report.md" ]; then
+              cat "artifacts/test-artifacts-$version/version-report.md" >> comparison-report.md
+            else
+              echo "No test results available" >> comparison-report.md
+            fi
+            echo "" >> comparison-report.md
+          done
+
+      - name: Upload combined report
+        uses: actions/upload-artifact@v3
+        with:
+          name: version-comparison-report
+          path: comparison-report.md
