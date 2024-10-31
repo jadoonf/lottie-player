@@ -32,20 +32,27 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Clean npm config and remove private dependencies
+      - name: Clean npm config and update package.json
         run: |
           echo "registry=https://registry.npmjs.org/" > .npmrc
-          # Remove @lottiefiles dependencies from package.json
-          jq 'del(.dependencies["@lottiefiles/eslint-plugin"])' package.json > temp.json && mv temp.json package.json
-          jq 'del(.devDependencies["@lottiefiles/eslint-plugin"])' package.json > temp.json && mv temp.json package.json
+          # Update package.json to fix dependency issues
+          jq '
+            del(.dependencies["@lottiefiles/eslint-plugin"]) |
+            .devDependencies["rollup"] = "^1.32.1" |
+            .devDependencies["@types/node"] = "^14.x" |
+            .devDependencies["webpack"] = "^5.x" |
+            .devDependencies["babel-loader"] = "^9.x" |
+            del(.devDependencies["rollup-plugin-terser"]) |
+            .devDependencies["@rollup/plugin-terser"] = "^0.4.0"
+          ' package.json > temp.json && mv temp.json package.json
       - name: Install global dependencies
         run: |
           npm install -g shx
           npm install -g typescript
       - name: Install dependencies
         run: |
-          yarn install --no-lockfile --ignore-optional --network-timeout 100000
-          npm install --no-package-lock
+          yarn install --no-lockfile --ignore-optional --network-timeout 100000 --legacy-peer-deps
+          npm install --no-package-lock --legacy-peer-deps
         continue-on-error: true
       - name: Create dist directory
         run: |
@@ -61,7 +68,7 @@ jobs:
           echo "export const LOTTIE_WEB_VERSION = '5.7.13';" >> src/versions.ts
       - name: Build project
         run: |
-          npm run build || true
+          npm run build --legacy-peer-deps || true
         env:
           NODE_OPTIONS: --max-old-space-size=4096
         continue-on-error: true
@@ -79,12 +86,19 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           registry-url: https://registry.npmjs.org/
-      - name: Clean npm config and remove private dependencies
+      - name: Clean npm config and update package.json
         run: |
           echo "registry=https://registry.npmjs.org/" > .npmrc
-          # Remove @lottiefiles dependencies from package.json
-          jq 'del(.dependencies["@lottiefiles/eslint-plugin"])' package.json > temp.json && mv temp.json package.json
-          jq 'del(.devDependencies["@lottiefiles/eslint-plugin"])' package.json > temp.json && mv temp.json package.json
+          # Update package.json to fix dependency issues
+          jq '
+            del(.dependencies["@lottiefiles/eslint-plugin"]) |
+            .devDependencies["rollup"] = "^1.32.1" |
+            .devDependencies["@types/node"] = "^14.x" |
+            .devDependencies["webpack"] = "^5.x" |
+            .devDependencies["babel-loader"] = "^9.x" |
+            del(.devDependencies["rollup-plugin-terser"]) |
+            .devDependencies["@rollup/plugin-terser"] = "^0.4.0"
+          ' package.json > temp.json && mv temp.json package.json
       - name: Install global dependencies
         run: |
           npm install -g shx
@@ -96,8 +110,8 @@ jobs:
           lstn: 'v0.15.0'
       - name: Install dependencies
         run: |
-          yarn install --no-lockfile --ignore-optional --network-timeout 100000
-          npm install --no-package-lock
+          yarn install --no-lockfile --ignore-optional --network-timeout 100000 --legacy-peer-deps
+          npm install --no-package-lock --legacy-peer-deps
         continue-on-error: true
       - name: Create dist directory
         run: |
@@ -108,7 +122,7 @@ jobs:
           echo "export const LOTTIE_WEB_VERSION = '5.7.13';" >> src/versions.ts
       - name: Build project
         run: |
-          npm run build || true
+          npm run build --legacy-peer-deps || true
         env:
           NODE_OPTIONS: --max-old-space-size=4096
       - name: Pack and verify package
