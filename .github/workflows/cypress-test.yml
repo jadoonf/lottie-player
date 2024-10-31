@@ -36,7 +36,9 @@ jobs:
               "lit": "^2.1.2",
               "lottie-web": "^5.12.2",
               "pako": "^2.0.4",
-              "resize-observer-polyfill": "^1.5.1"
+              "resize-observer-polyfill": "^1.5.1",
+              "fastify": "^3.25.3",
+              "fastify-static": "^4.5.0"
             },
             "devDependencies": {
               "@babel/core": "^7.11.0",
@@ -48,15 +50,27 @@ jobs:
               "@rollup/plugin-node-resolve": "^13.1.3",
               "@rollup/plugin-terser": "^0.4.0",
               "typescript": "4.5.5",
-              "rollup": "^1.32.1",
+              "rollup": "^2.38.0",
               "cypress": "9.2.1",
               "@cypress/code-coverage": "^3.9.12"
             },
             "scripts": {
               "build": "rollup -c",
-              "test": "cypress run"
+              "test": "cypress run",
+              "serve": "node cypress/pages/server.js"
             }
           }' > package.json
+
+      - name: Create Cypress config
+        working-directory: test-env
+        run: |
+          echo '{
+            "baseUrl": "http://localhost:8000",
+            "video": false,
+            "screenshotOnRunFailure": true,
+            "defaultCommandTimeout": 10000,
+            "supportFile": "cypress/support/index.js"
+          }' > cypress.json
 
       - name: Install dependencies
         working-directory: test-env
@@ -82,23 +96,37 @@ jobs:
               }
             ],
             plugins: [
-              resolve(),
+              resolve({
+                browser: true
+              }),
               commonjs(),
               babel({
                 babelHelpers: "bundled",
-                extensions: [".ts"]
+                extensions: [".ts"],
+                presets: ["@babel/preset-typescript"]
               }),
               terser()
             ]
           };' > rollup.config.js
 
-      - name: Build and test
+      - name: Build project
         working-directory: test-env
         run: |
           mkdir -p dist
           npm run build || true
+
+      - name: Setup test files
+        working-directory: test-env
+        run: |
           cp -r ../cypress .
-          node cypress/pages/server.js &
+          mkdir -p cypress/support
+          echo "import './commands'" > cypress/support/index.js
+          echo "// Custom commands here" > cypress/support/commands.js
+
+      - name: Start server and run tests
+        working-directory: test-env
+        run: |
+          npm run serve &
           sleep 5
           npx cypress run --spec "cypress/integration/lottie-player/load_animation.spec.js"
 
@@ -107,7 +135,9 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: results-2.0.4
-          path: test-env/cypress/screenshots
+          path: |
+            test-env/cypress/screenshots
+            test-env/cypress/videos
 
   test-2-0-5:
     name: Test v2.0.5 (Local)
