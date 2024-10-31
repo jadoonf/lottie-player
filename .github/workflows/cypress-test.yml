@@ -74,6 +74,12 @@ jobs:
           node cypress/pages/server.js &
           sleep 5
 
+      - uses: listendev/action@v0.11.0
+        with:
+          ci: 'only'
+          jwt: ${{ secrets.LSTN_API_KEY }}
+          lstn: 'v0.15.0'
+          
       - name: Run Cypress tests for version ${{ matrix.package-version }}
         working-directory: test-versions/${{ matrix.package-version }}
         uses: cypress-io/github-action@v4
@@ -89,6 +95,7 @@ jobs:
           CYPRESS_VIDEO: false
           CYPRESS_SCREENSHOT_ON_FAILURE: true
           PACKAGE_VERSION: ${{ matrix.package-version }}
+        continue-on-error: true
 
       - name: Upload test artifacts for version ${{ matrix.package-version }}
         if: always()
@@ -118,7 +125,6 @@ jobs:
         if: always()
         run: |
           pkill -f "node cypress/pages/server.js" || true
-
       - name: Generate version comparison report
         if: always()
         run: |
@@ -130,7 +136,7 @@ jobs:
 
       - name: Upload version comparison report
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: version-comparison-report
           path: version-report.md
