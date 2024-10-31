@@ -113,13 +113,12 @@ jobs:
         run: |
           npx nyc report --reporter=text-summary
           npx nyc report --reporter=html
-
       - name: Upload coverage report for version ${{ matrix.package-version }}
         if: always()
         uses: actions/upload-artifact@v2
         with:
           name: coverage-report-${{ matrix.package-version }}
-          path: test-versions/${{ matrix.package-version }}/coverage/
+          path: 'test-versions/${{ matrix.package-version }}/coverage/'
 
       - name: Stop test server
         if: always()
