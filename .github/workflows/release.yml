@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     branches: [master]
+  workflow_dispatch: 
 
 jobs:
   build:
@@ -36,6 +37,10 @@ jobs:
         run: yarn
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - uses: listendev/action@v0.11
+        with:
+          ci: only
+          jwt: ${{ secrets.LSTN_API_KEY }}
       - name: Build project
         run: yarn build
       - name: Serve example app
@@ -62,6 +67,10 @@ jobs:
       - run: yarn install
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - uses: listendev/action@v0.11
+        with:
+          ci: only
+          jwt: ${{ secrets.LSTN_API_KEY }}
       - name: Build project
         continue-on-error: false
         run: yarn build
@@ -92,6 +101,10 @@ jobs:
       - run: yarn install
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - uses: listendev/action@v0.11
+        with:
+          ci: only
+          jwt: ${{ secrets.LSTN_API_KEY }}
       - name: Build project
         continue-on-error: false
         run: yarn build
