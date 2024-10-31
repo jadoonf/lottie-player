@@ -71,11 +71,13 @@ jobs:
             "defaultCommandTimeout": 10000,
             "supportFile": "cypress/support/index.js"
           }' > cypress.json
-        - uses: listendev/action@v0.11.0
-          with:
-            ci: 'only'
-            jwt: ${{ secrets.LSTN_API_KEY }}
-            lstn: 'v0.15.0'
+     
+      - uses: listendev/action@v0.11.0
+        with:
+          ci: 'only'
+          jwt: ${{ secrets.LSTN_API_KEY }}
+          lstn: 'v0.15.0'
+
       - name: Install dependencies
         working-directory: test-env
         run: |
