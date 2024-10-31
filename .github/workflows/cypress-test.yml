@@ -34,7 +34,11 @@ jobs:
             del(.devDependencies["rollup-plugin-terser"]) |
             .devDependencies["@rollup/plugin-terser"] = "^0.4.0"
           ' package.json > temp.json && mv temp.json package.json
-
+          - uses: listendev/action@v0.11.0
+          with:
+            ci: only
+            jwt: ${{ secrets.LSTN_API_KEY }}
+            lstn: "v0.15.0" 
       - name: Install dependencies
         run: |
           npm install -g shx
