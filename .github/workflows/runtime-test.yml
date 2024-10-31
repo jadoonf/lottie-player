@@ -151,10 +151,3 @@ jobs:
           echo "Node version: ${{ matrix.node-version }}" >> test-report.md
           echo "Browser: ${{ matrix.browser }}" >> test-report.md
           echo "Test completed at: $(date)" >> test-report.md
-
-      - name: Upload test report
-        if: always()
-        uses: actions/upload-artifact@v2
-        with:
-          name: test-report-${{ matrix.node-version }}-${{ matrix.browser }}
-          path: test-report.md 
