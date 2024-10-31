@@ -43,9 +43,9 @@ jobs:
       - name: Run tests
         run: yarn test
 
-  release-npm:
+  simulate-release:
     needs: build
-    name: Release npm
+    name: Simulate Release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
@@ -53,7 +53,16 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           registry-url: https://registry.npmjs.org/
-      - run: yarn install --no-lockfile
+      - name: Clean npm config
+        run: |
+          echo "registry=https://registry.npmjs.org/" > .npmrc
+          echo "@lottiefiles:registry=https://registry.npmjs.org/" >> .npmrc
+      - run: yarn install --no-lockfile --ignore-optional
       - name: Build project
         run: yarn build
-      - run: npm pack
+      - name: Pack and verify package
+        run: |
+          npm pack
+          echo "Package contents that would be published:"
+          tar -tzf *.tgz
+          echo "Package would be published to npm registry (simulation only)"
