@@ -12,14 +12,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        version: ['2.0.4', '2.0.5', '2.0.8']
+        version: ['2.0.4', '2.0.5', '2.0.6', '2.0.7', '2.0.8']
         include:
           - version: '2.0.4'
-            source: 'local'
-            path: '@lottiefiles_lottie-player_2.0.4'
+            source: 'registry'
+            path: ''
           - version: '2.0.5'
             source: 'local'
             path: '@lottiefiles_lottie-player_2.0.5'
+          - version: '2.0.6'
+            source: 'local'
+            path: '@lottiefiles_lottie-player_2.0.6'
+          - version: '2.0.7'
+            source: 'local'
+            path: '@lottiefiles_lottie-player_2.0.7'
           - version: '2.0.8'
             source: 'registry'
             path: ''
@@ -73,32 +79,9 @@ jobs:
             }
           }' > package.json
 
-          # Create cypress.json
-          echo '{
-            "baseUrl": "http://localhost:8000",
-            "video": false,
-            "screenshotOnRunFailure": true,
-            "defaultCommandTimeout": 10000,
-            "supportFile": "cypress/support/index.js",
-            "integrationFolder": "cypress/integration",
-            "testFiles": "**/*.spec.js",
-            "env": {
-              "codeCoverage": {
-                "url": "/coverage"
-              }
-            }
-          }' > cypress.json
-
-      - uses: listendev/action@v0.11.0
-        with:
-          ci: 'only'
-          jwt: ${{ secrets.LSTN_API_KEY }}
-          lstn: 'v0.15.0'
-            
       - name: Install dependencies
         working-directory: coverage-test/${{ matrix.version }}
-        run: |
-          npm install --no-package-lock --legacy-peer-deps
+        run: npm install --no-package-lock --legacy-peer-deps
 
       - name: Setup test files
         run: |
@@ -112,10 +95,9 @@ jobs:
           node cypress/pages/server.js &
           sleep 5
 
-          # Run all Cypress specs with coverage
+          # Run Cypress tests with coverage
           npx nyc --reporter=lcov --reporter=text-summary cypress run \
             --spec "cypress/integration/lottie-player/*.spec.js"
-        continue-on-error: true 
 
       - name: Upload coverage results
         uses: actions/upload-artifact@v3
@@ -129,49 +111,41 @@ jobs:
     needs: setup-versions
     runs-on: ubuntu-latest
     steps:
-      - name: Download all coverage results
+      - name: Download coverage results
         uses: actions/download-artifact@v3
         with:
           path: coverage-results
 
-      - name: Generate combined report
+      - name: Generate comparison report
         run: |
           echo "# Lottie Player Coverage Report" > coverage-report.md
           echo "Generated: $(date)" >> coverage-report.md
           echo "" >> coverage-report.md
-
-          for version in "2.0.4" "2.0.5" "2.0.8"; do
-            echo "## Version $version Coverage" >> coverage-report.md
-            echo '```' >> coverage-report.md
-            if [ -f "coverage-results/coverage-$version/.nyc_output/coverage-summary.txt" ]; then
-              cat "coverage-results/coverage-$version/.nyc_output/coverage-summary.txt" >> coverage-report.md
-            else
-              echo "No coverage data available" >> coverage-report.md
-            fi
-            echo '```' >> coverage-report.md
-            echo "" >> coverage-report.md
-          done
-
-          # Add coverage comparison
-          echo "## Coverage Comparison" >> coverage-report.md
-          echo "| Version | Statements | Branches | Functions | Lines |" >> coverage-report.md
-          echo "|---------|------------|----------|-----------|-------|" >> coverage-report.md
           
-          for version in "2.0.4" "2.0.5" "2.0.8"; do
+          echo "## Coverage Comparison" >> coverage-report.md
+          echo "| Version | Source | Statements | Branches | Functions | Lines |" >> coverage-report.md
+          echo "|---------|--------|------------|----------|-----------|-------|" >> coverage-report.md
+          
+          for version in "2.0.4" "2.0.5" "2.0.6" "2.0.7" "2.0.8"; do
             coverage_file="coverage-results/coverage-$version/.nyc_output/coverage-summary.txt"
+            source="registry"
+            if [ "$version" = "2.0.5" ] || [ "$version" = "2.0.6" ] || [ "$version" = "2.0.7" ]; then
+              source="local"
+            fi
+            
             if [ -f "$coverage_file" ]; then
               statements=$(grep "Statements" "$coverage_file" | awk '{print $3}')
               branches=$(grep "Branches" "$coverage_file" | awk '{print $3}')
               functions=$(grep "Functions" "$coverage_file" | awk '{print $3}')
               lines=$(grep "Lines" "$coverage_file" | awk '{print $3}')
-              echo "| $version | $statements | $branches | $functions | $lines |" >> coverage-report.md
+              echo "| $version | $source | $statements | $branches | $functions | $lines |" >> coverage-report.md
             else
-              echo "| $version | N/A | N/A | N/A | N/A |" >> coverage-report.md
+              echo "| $version | $source | N/A | N/A | N/A | N/A |" >> coverage-report.md
             fi
           done
 
-      - name: Upload combined report
+      - name: Upload comparison report
         uses: actions/upload-artifact@v3
         with:
           name: coverage-comparison-report
-          path: coverage-report.md 
+          path: coverage-report.md
